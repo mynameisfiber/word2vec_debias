@@ -97,7 +97,7 @@ def load_word2vec_model():
         './data/word2vec_googlenews_negative300.bin',
         binary=True, limit=None
     )
-    model.syn0 = model.syn0[:, :100]
+    model.syn0 = model.syn0[:, :200]
     model.syn0 /= np.linalg.norm(model.syn0)  # ensure normalied
     model = vocab_subsample(model, top_k=50000)
     return model
