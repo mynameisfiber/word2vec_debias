@@ -3,18 +3,13 @@ Implementation of http://arxiv.org/abs/1607.06520
 """
 
 import random
-from gensim.models import Word2Vec
 import numpy as np
 import cvxpy as cvx
-from tqdm import tqdm
-from joblib import Memory
 
-import re
 from functools import wraps
 import time
-import heapq
 
-memory = Memory(cachedir='./cache/', verbose=1)
+from word2vec import load_word2vec_model
 
 
 def timer(fxn):
@@ -30,8 +25,22 @@ def timer(fxn):
 
 
 @timer
-def gender_subspace(model, k=10):
+def gender_subspace(model, word_groups, k=10):
+    """
+    the definition of C on page 12 makes no sense.... that isn't a matrix!
+    """
     W = model.syn0
+    normalization = np.zeros(len(word_groups)+1)
+    mu = np.zeros(len(word_groups)+1)
+
+    indexes = np.ones(W.shape[0], dtype=np.bool)
+    for i, words in enumerate(word_groups):
+        idx = [model.vocab[w].index for w in words]
+        C = np.mean(W[idx])
+        indexes[i] = False
+    mu[len(word_groups)] = np.mean(W[indexes])
+
+    C = 
     normalization = (1.0 / np.linalg.norm(W, axis=1)).sum()
     mu = W * normalization
     C = (W - mu).T @ (W - mu) * normalization
@@ -64,47 +73,16 @@ def soft_bias_correction(model, gender_subspace, neutral_words, tuning=0.2):
         except AttributeError:
             pass
 
-    prob.solve(solver=cvx.CVXOPT, verbose=True)
+    prob.solve(solver=cvx.SCS, verbose=True)
 
     return X.value, prob.value
 
 
-@timer
-def vocab_subsample(model, top_k=5000, max_length=20):
-    nlargest = []
-    acceptable = re.compile("^[a-z ]{," + str(max_length) + "}$")
-    for word, value in tqdm(model.vocab.items()):
-        if acceptable.match(word) is not None:
-            item = (value.count, (word, value))
-            if len(nlargest) >= top_k:
-                heapq.heappushpop(nlargest, item)
-            else:
-                heapq.heappush(nlargest, item)
-    indexes = []
-    model.vocab = {}
-    for i, (_, (word, value)) in enumerate(nlargest):
-        indexes.append(value.index)
-        value.index = i
-        model.vocab[word] = value
-    model.syn0 = model.syn0[indexes]
-    return model
-
-
-@timer
-@memory.cache
-def load_word2vec_model():
-    model = timer(Word2Vec.load_word2vec_format)(
-        './data/word2vec_googlenews_negative300.bin',
-        binary=True, limit=None
-    )
-    model.syn0 = model.syn0[:, :200]
-    model.syn0 /= np.linalg.norm(model.syn0)  # ensure normalied
-    model = vocab_subsample(model, top_k=50000)
-    return model
-
-
 if __name__ == "__main__":
-    model = load_word2vec_model()
-    B = gender_subspace(model)
+    gendered_words = [{w.strip().split(',')[0]
+                      for it.chain(open("gendered_words_classifier.txt"),
+                                   open("gendered_words.txt"))}]
+    model = load_word2vec_model(truncate_vector=200)
+    B = gender_subspace(model, gendered_words)
     neutral_words = random.sample(model.vocab.keys(), 5)
     X, result = soft_bias_correction(model, B, neutral_words)
