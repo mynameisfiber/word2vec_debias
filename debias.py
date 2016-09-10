@@ -92,19 +92,19 @@ def vocab_subsample(model, top_k=5000, max_length=20):
 
 @timer
 @memory.cache
-def load_word2vec_model():
+def load_word2vec_model(truncate_vector=None, top_k=50000):
     model = timer(Word2Vec.load_word2vec_format)(
         './data/word2vec_googlenews_negative300.bin',
         binary=True, limit=None
     )
-    model.syn0 = model.syn0[:, :100]
+    model.syn0 = model.syn0[:, :truncate_vector]
     model.syn0 /= np.linalg.norm(model.syn0)  # ensure normalied
-    model = vocab_subsample(model, top_k=50000)
+    model = vocab_subsample(model, top_k=top_k)
     return model
 
 
 if __name__ == "__main__":
-    model = load_word2vec_model()
+    model = load_word2vec_model(truncate_vector=100)
     B = gender_subspace(model)
     neutral_words = random.sample(model.vocab.keys(), 5)
     X, result = soft_bias_correction(model, B, neutral_words)
