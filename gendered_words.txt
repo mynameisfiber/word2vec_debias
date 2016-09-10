@@ -57,14 +57,14 @@ nephew
 bride
 females
 aunt
-prostate cancer
+prostate_cancer
 lesbian
 chairwoman
 fathers
 moms
 maiden
 granddaughter
-younger brother
+younger_brother
 lads
 lion
 gentleman
@@ -87,7 +87,7 @@ actresses
 gentlemen
 stepfather
 monks
-ex girlfriend
+ex_girlfriend
 lad
 sperm
 testosterone
@@ -108,21 +108,21 @@ sir
 stud
 mistress
 lions
-estranged wife
+estranged_wife
 womb
 grandma
 maternity
 estrogen
-ex boyfriend
+ex_boyfriend
 widows
 gelding
 diva
-teenage girls
+teenage_girls
 nuns
 czar
-ovarian cancer
+ovarian_cancer
 countrymen
-teenage girl
+teenage_girl
 penis
 bloke
 nun
@@ -137,7 +137,7 @@ brethren
 stepmother
 prostate
 hostess
-twin brother
+twin_brother
 schoolboy
 brotherhood
 fillies
@@ -152,7 +152,7 @@ suitor
 sorority
 macho
 businesswoman
-eldest son
+eldest_son
 gal
 statesman
 schoolgirl
@@ -171,8 +171,8 @@ godfather
 hens
 hen
 mommy
-estranged husband
-elder brother
+estranged_husband
+elder_brother
 boyhood
 baritone
 grandmothers
@@ -196,7 +196,7 @@ vagina
 beau
 beards
 handyman
-twin sister
+twin_sister
 maids
 gals
 housewives
