@@ -30,21 +30,24 @@ def gender_subspace(model, word_groups, k=10):
     the definition of C on page 12 makes no sense.... that isn't a matrix!
     """
     W = model.syn0
+    C = np.zeros_like(W)
     normalization = np.zeros(len(word_groups)+1)
     mu = np.zeros(len(word_groups)+1)
 
     indexes = np.ones(W.shape[0], dtype=np.bool)
     for i, words in enumerate(word_groups):
         idx = [model.vocab[w].index for w in words]
-        C = np.mean(W[idx])
+        mu = np.mean(W[idx])
+        D = len(words)
+        C[idx] = (W[idx] - mu) / D
         indexes[i] = False
-    mu[len(word_groups)] = np.mean(W[indexes])
 
-    C = 
-    normalization = (1.0 / np.linalg.norm(W, axis=1)).sum()
-    mu = W * normalization
-    C = (W - mu).T @ (W - mu) * normalization
-    _, _, svdC = np.linalg.svd(C)
+    # get the rest of the words not described in a word group
+    mu = np.mean(W[indexes])
+    D = sum(indexes)
+    C[indexes] = (W[indexes] - mu) / D
+
+    _, _, svdC = np.linalg.svd(C, full_matrices=True)
     return svdC[:k]
 
 
@@ -82,7 +85,7 @@ if __name__ == "__main__":
     gendered_words = [{w.strip().split(',')[0]
                       for it.chain(open("gendered_words_classifier.txt"),
                                    open("gendered_words.txt"))}]
-    model = load_word2vec_model(truncate_vector=200)
+    model = load_word2vec_model(truncate_vector=150)
     B = gender_subspace(model, gendered_words)
     neutral_words = random.sample(model.vocab.keys(), 5)
     X, result = soft_bias_correction(model, B, neutral_words)
