@@ -2,3 +2,4 @@ data/*.bin
 venv/
 __pycache__
 *.sw*
+cache
