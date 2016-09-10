@@ -64,14 +64,14 @@ def soft_bias_correction(model, gender_subspace, neutral_words, tuning=0.2):
     UE = U @ E
     B = gender_subspace
 
-    return _solve_soft_bias_correction_scipy(UE, I, N, B, tuning)
+    return _solve_soft_bias_correction_cvxpy(UE, I, N, B, tuning)
 
 
 def _solve_soft_bias_correction_cvxpy(UE, I, N, B, tuning):
     X = cvx.Semidef(N.shape[0], name='T')
     objective = (
         cvx.Minimize(cvx.sum_squares(UE.T * (X - I) * UE) +
-                     cvx.quad_over_lin(N.T * X * B.T), tuning)
+                     cvx.quad_over_lin(N.T * X * B.T, tuning))
     )
     constraints = [X >> 0]
     prob = cvx.Problem(objective, constraints)
@@ -116,9 +116,9 @@ if __name__ == "__main__":
     gendered_words = {w.strip().split(',')[0]
                       for w in it.chain(open("gendered_words_classifier.txt"),
                                         open("gendered_words.txt"))}
-    model = load_word2vec_model(truncate_vector=50)
+    model = load_word2vec_model(truncate_vector=None)
     gendered_words = list(filter(model.vocab.__contains__, gendered_words))
-    neutral_words = set(model.vocab) - set(gendered_words)
+    neutral_words = list(set(model.vocab) - set(gendered_words))
     model = trim_model(model, neutral_words[1000:])
     neutral_words = neutral_words[:1000]
 
