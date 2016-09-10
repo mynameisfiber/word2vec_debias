@@ -7,6 +7,7 @@ import numpy as np
 import cvxpy as cvx
 
 from functools import wraps
+import itertools as it
 import time
 
 from word2vec import load_word2vec_model
@@ -31,7 +32,6 @@ def gender_subspace(model, word_groups, k=10):
     """
     W = model.syn0
     C = np.zeros_like(W)
-    normalization = np.zeros(len(word_groups)+1)
     mu = np.zeros(len(word_groups)+1)
 
     indexes = np.ones(W.shape[0], dtype=np.bool)
@@ -83,8 +83,8 @@ def soft_bias_correction(model, gender_subspace, neutral_words, tuning=0.2):
 
 if __name__ == "__main__":
     gendered_words = [{w.strip().split(',')[0]
-                      for it.chain(open("gendered_words_classifier.txt"),
-                                   open("gendered_words.txt"))}]
+                      for w in it.chain(open("gendered_words_classifier.txt"),
+                                        open("gendered_words.txt"))}]
     model = load_word2vec_model(truncate_vector=150)
     B = gender_subspace(model, gendered_words)
     neutral_words = random.sample(model.vocab.keys(), 5)
