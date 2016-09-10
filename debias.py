@@ -6,8 +6,11 @@ import random
 from gensim.models import Word2Vec
 import numpy as np
 import cvxpy as cvx
+
+import re
 from functools import wraps
 import time
+import heapq
 
 
 def timer(fxn):
@@ -63,12 +66,32 @@ def soft_bias_correction(model, gender_subspace, neutral_words, tuning=0.2):
     return X.value, prob.value
 
 
+@timer
+def vocab_subsample(model, top_k=25, max_length=20):
+    nlargest = []
+    acceptable = re.compile("^[a-z ]{," + str(max_length) + "}$")
+    for word, value in model.vocab.items():
+        if acceptable.match(word) is not None:
+            item = (value.count, (word, value))
+            if len(nlargest) >= top_k:
+                heapq.heappushpop(nlargest, item)
+            else:
+                heapq.heappush(nlargest, item)
+    indexes = [value.index for _, (word, value) in nlargest]
+    model.syn0 = model.syn0[indexes]
+    model.vocab = {word:value for _, (word, value) in nlargest}
+    return model
+
+
 if __name__ == "__main__":
     model = Word2Vec.load_word2vec_format(
         './data/word2vec_googlenews_negative300.bin',
         binary=True, limit=1000
     )
     model.syn0 = model.syn0[:, :100]
+    model.syn0 /= np.linalg.norm(model.syn0)  # ensure normalied
+    model = vocab_subsample(model)
+
     B = gender_subspace(model)
     neutral_words = random.sample(model.vocab.keys(), 5)
     X, result = soft_bias_correction(model, B, neutral_words)
