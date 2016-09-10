@@ -28,7 +28,8 @@ def timer(fxn):
 @timer
 def gender_subspace(model, word_groups, k=10):
     """
-    the definition of C on page 12 makes no sense.... that isn't a matrix!
+    - the definition of C on page 12 makes no sense.... that isn't a matrix!
+    - is there only a group for gendered words or also for neutral ones?
     """
     W = model.syn0
     C = np.zeros_like(W)
@@ -82,10 +83,12 @@ def soft_bias_correction(model, gender_subspace, neutral_words, tuning=0.2):
 
 
 if __name__ == "__main__":
-    gendered_words = [{w.strip().split(',')[0]
+    gendered_words = {w.strip().split(',')[0]
                       for w in it.chain(open("gendered_words_classifier.txt"),
-                                        open("gendered_words.txt"))}]
-    model = load_word2vec_model(truncate_vector=150)
-    B = gender_subspace(model, gendered_words)
-    neutral_words = random.sample(model.vocab.keys(), 5)
+                                        open("gendered_words.txt"))}
+    model = load_word2vec_model(truncate_vector=100)
+    gendered_words = list(filter(model.vocab.__contains__, gendered_words))
+    neutral_words = set(model.vocab) - set(gendered_words)
+
+    B = gender_subspace(model, [gendered_words])
     X, result = soft_bias_correction(model, B, neutral_words)
