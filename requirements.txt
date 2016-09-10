@@ -2,4 +2,4 @@ gensim
 numpy
 cvxpy
 cvxopt
-scs --global-option="--gpu"
+scs
