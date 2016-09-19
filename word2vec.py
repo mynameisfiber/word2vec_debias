@@ -51,10 +51,10 @@ def trim_model(model, words):
 
 
 @memory.cache
-def load_word2vec_model(truncate_vector=None, top_k=50000):
+def load_word2vec_model(truncate_vector=None, top_k=50000, limit=None):
     model = Word2Vec.load_word2vec_format(
         './data/word2vec_googlenews_negative300.bin',
-        binary=True, limit=None
+        binary=True, limit=limit
     )
     model.syn0 = model.syn0[:, :truncate_vector]
     model.syn0 /= np.linalg.norm(model.syn0, axis=1)[:, np.newaxis]

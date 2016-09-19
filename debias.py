@@ -33,24 +33,25 @@ def gender_subspace(model, word_groups, k=10):
     - is there only a group for gendered words or also for neutral ones?
     """
     W = model.syn0
-    C = np.zeros_like(W)
     mu = np.zeros(len(word_groups)+1)
+    Wnorm = np.zeros_like(W)
 
     indexes = np.ones(W.shape[0], dtype=np.bool)
     for i, words in enumerate(word_groups):
         idx = [model.vocab[w].index for w in words]
         mu = np.mean(W[idx])
         D = len(words)
-        C[idx] = (W[idx] - mu) / D
+        Wnorm[idx] = (W[idx] - mu) / D
         indexes[i] = False
-
     # get the rest of the words not described in a word group
     mu = np.mean(W[indexes])
     D = sum(indexes)
-    C[indexes] = (W[indexes] - mu) / D
+    Wnorm[indexes] = (W[indexes] - mu) / D
 
-    _, _, svdC = np.linalg.svd(C, full_matrices=True)
-    return svdC[:k]
+    C = np.cov(Wnorm, rowvar=False)
+    _, s, Vt = np.linalg.svd(C, full_matrices=False)
+    B = np.diag(np.sqrt(s[:k])) @ Vt[:k, :]
+    return B
 
 
 @timer
@@ -64,13 +65,13 @@ def soft_bias_correction(model, gender_subspace, neutral_words, tuning=0.2):
     UE = U @ E
     EUT = E @ U.T
 
-    return _solve_soft_bias_correction_cvxpy(UE, EUT, I, N, B, tuning)
+    return _solve_soft_bias_correction_tensorflow(UE, EUT, I, N, B, tuning)
 
 
 def _solve_soft_bias_correction_cvxpy(UE, EUT, I, N, B, tuning):
     X = cvx.Semidef(N.shape[0], name='T')
     objective = (
-        cvx.Minimize(cvx.sum_squares(UET * (X - I) * UE) +
+        cvx.Minimize(cvx.sum_squares(EUT * (X - I) * UE) +
                      cvx.quad_over_lin(N.T * X * B.T, tuning))
     )
     constraints = [X >> 0]
@@ -83,7 +84,7 @@ def _solve_soft_bias_correction_cvxpy(UE, EUT, I, N, B, tuning):
         except AttributeError:
             pass
 
-    prob.solve(solver=cvx.SCS, verbose=True)
+    prob.solve(solver=cvx.SCS, verbose=True, gpu=True)
     return X.value, prob.value
 
 
@@ -92,7 +93,7 @@ def _solve_soft_bias_correction_scipy(UE, EUT, I, N, B, tuning):
         X[np.triu_indices(N.shape[0], -1)] = 0
         X[np.triu_indices(N.shape[0])] = x
         X = X + X.T - np.diag(X.diagonal())
-        return (np.linalg.norm(UET @ (X - I) @ UE)**2 +
+        return (np.linalg.norm(EUT @ (X - I) @ UE)**2 +
                 tuning * np.linalg.norm(N.T @ X @ B.T)**2)
 
     n_elements = N.shape[0] * (N.shape[0] + 1)/2
@@ -112,15 +113,49 @@ def _solve_soft_bias_correction_scipy(UE, EUT, I, N, B, tuning):
     return X, objective(result.x)
 
 
+def _solve_soft_bias_correction_tensorflow(UE, EUT, I, N, B, tuning):
+    import tensorflow as tf
+
+    B = B.astype(np.float32)
+
+    n = N.shape[0]
+    n_elements = int(n * (n + 1) / 2.0)
+    xv = tf.Variable(np.random.rand(n_elements).astype(np.float32))
+    x = tf.SparseTensor(indices=list(zip(*np.triu_indices(n, m=n))),
+                        values=xv,
+                        shape=(n, n))
+    X = tf.sparse_tensor_to_dense(x)
+    X += tf.transpose(X)
+    X -= tf.diag(tf.diag_part(X))
+    A = tf.matmul(EUT, tf.matmul((X - I), UE))
+    B = tf.matmul(N.T, tf.matmul(X, B.T))
+    loss = (tf.reduce_sum(tf.mul(A, A))**2 +
+            tuning * tf.reduce_sum(tf.mul(B, B))**2)
+
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01)
+    train = optimizer.minimize(loss)
+
+    init = tf.initialize_all_variables()
+    sess = tf.Session()
+    sess.run(init)
+    for step in range(8001):
+        sess.run(train)
+        if step % 100 == 0:
+            print(step, sess.run(loss), sess.run(x))
+    import IPython; IPython.embed()
+
+
 if __name__ == "__main__":
+    num_neutral = 714
     gendered_words = {w.strip().split(',')[0]
                       for w in it.chain(open("gendered_words_classifier.txt"),
                                         open("gendered_words.txt"))}
     model = load_word2vec_model(truncate_vector=None)
+    model.syn0 = model.syn0[:, :100]
     gendered_words = list(filter(model.vocab.__contains__, gendered_words))
     neutral_words = list(set(model.vocab) - set(gendered_words))
-    model = trim_model(model, neutral_words[1000:])
-    neutral_words = neutral_words[:1000]
+    model = trim_model(model, neutral_words[num_neutral:])
+    neutral_words = neutral_words[:num_neutral]
 
     B = gender_subspace(model, [gendered_words], k=4)
     X, result = soft_bias_correction(model, B, neutral_words)
